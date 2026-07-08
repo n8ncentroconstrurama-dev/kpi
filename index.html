@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Centro Construrama · Tiempo de respuesta del equipo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  /* ============ CONFIG DE TOKENS (blueprint / ferretería) ============ */
+  :root{
+    --bg:#0c1a2b;
+    --panel:#112339;
+    --panel-2:#15304c;
+    --ink:#eaf1f8;
+    --muted:#8aa2bd;
+    --accent:#ffb020;      /* ámbar de seguridad */
+    --accent-2:#f97316;
+    --good:#38d39f;
+    --warn:#ffb020;
+    --bad:#ef5b5b;
+    --line:rgba(138,162,189,.16);
+    --grid:rgba(120,160,200,.055);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:
+      linear-gradient(var(--grid) 1px, transparent 1px) 0 0/28px 28px,
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px) 0 0/28px 28px,
+      radial-gradient(1200px 600px at 80% -10%, #16324f 0%, var(--bg) 60%);
+    color:var(--ink);
+    font-family:'Inter',system-ui,sans-serif;
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1180px;margin:0 auto;padding:26px 20px 60px}
+
+  /* ============ HEADER ============ */
+  header.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:16px;
+    border-bottom:1px solid var(--line);padding-bottom:18px;margin-bottom:24px}
+  .brand{display:flex;align-items:center;gap:14px}
+  .mark{width:44px;height:44px;border:2px solid var(--accent);border-radius:7px;display:grid;place-items:center;
+    font-family:'Oswald';font-weight:700;font-size:22px;color:var(--accent);letter-spacing:1px;flex:none}
+  .brand h1{font-family:'Oswald';font-weight:600;font-size:26px;letter-spacing:.5px;margin:0;line-height:1}
+  .brand p{margin:5px 0 0;color:var(--muted);font-size:13px;letter-spacing:.2px}
+  .controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:var(--panel)}
+  .seg button{background:transparent;border:0;color:var(--muted);font-family:'Oswald';font-weight:500;
+    letter-spacing:.6px;font-size:12px;text-transform:uppercase;padding:9px 13px;cursor:pointer}
+  .seg button.on{background:var(--accent);color:#20140a}
+  .btn-refresh{background:var(--panel);border:1px solid var(--line);color:var(--ink);border-radius:9px;
+    padding:9px 13px;cursor:pointer;font-size:13px;display:inline-flex;align-items:center;gap:7px;font-family:'Inter'}
+  .btn-refresh:hover{border-color:var(--accent)}
+  .stamp{color:var(--muted);font-size:12px;font-family:'IBM Plex Mono'}
+
+  /* ============ KPI CARDS ============ */
+  .cards{display:grid;grid-template-columns:1.5fr 1fr 1fr 1fr;gap:14px;margin-bottom:16px}
+  .card{background:linear-gradient(180deg,var(--panel),#0f2036);border:1px solid var(--line);
+    border-radius:14px;padding:18px}
+  .card .lbl{font-family:'Oswald';text-transform:uppercase;letter-spacing:1.2px;font-size:12px;color:var(--muted)}
+  .card .num{font-family:'IBM Plex Mono';font-weight:600;font-variant-numeric:tabular-nums;line-height:1;margin-top:10px}
+  .card .num.big{font-size:52px}
+  .card .num.mid{font-size:34px}
+  .card .unit{font-family:'Oswald';font-size:16px;color:var(--muted);margin-left:6px}
+  .card .sub{color:var(--muted);font-size:12px;margin-top:8px}
+  .hero{position:relative}
+  .hero .num.big.good{color:var(--good)} .hero .num.big.warn{color:var(--warn)} .hero .num.big.bad{color:var(--bad)}
+  /* regla de medición */
+  .ruler{position:relative;height:10px;border-radius:6px;margin-top:16px;
+    background:linear-gradient(90deg,var(--good) 0%,var(--good) var(--p1,33%),var(--warn) var(--p1,33%),var(--warn) var(--p2,66%),var(--bad) var(--p2,66%),var(--bad) 100%);
+    opacity:.9}
+  .ruler .needle{position:absolute;top:-5px;width:2px;height:20px;background:var(--ink);border-radius:2px;box-shadow:0 0 0 3px rgba(12,26,43,.6)}
+  .ruler-scale{display:flex;justify-content:space-between;color:var(--muted);font-family:'IBM Plex Mono';font-size:10px;margin-top:6px}
+  .num.good{color:var(--good)} .num.warn{color:var(--warn)} .num.bad{color:var(--bad)}
+
+  /* ============ PANELS / CHARTS ============ */
+  .grid2{display:grid;grid-template-columns:1.4fr 1fr;gap:14px;margin-bottom:16px}
+  .grid2b{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px}
+  .panel h2{font-family:'Oswald';font-weight:500;font-size:15px;letter-spacing:.8px;text-transform:uppercase;
+    margin:0 0 14px;color:var(--ink);display:flex;align-items:center;gap:9px}
+  .panel h2 .tick{width:8px;height:8px;background:var(--accent);border-radius:2px;flex:none}
+  .chart-box{position:relative;height:260px}
+  .chart-box.sm{height:220px}
+
+  /* ============ TABLA ============ */
+  .tbl-wrap{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{font-family:'Oswald';font-weight:500;text-transform:uppercase;letter-spacing:.7px;font-size:11px;
+    color:var(--muted);text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
+  td{padding:11px 12px;border-bottom:1px solid rgba(138,162,189,.08);white-space:nowrap}
+  td.mono{font-family:'IBM Plex Mono';font-variant-numeric:tabular-nums}
+  .badge{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-family:'Oswald';
+    letter-spacing:.5px;text-transform:uppercase}
+  .b-atendido{background:rgba(56,211,159,.14);color:var(--good)}
+  .b-pendiente{background:rgba(255,176,32,.14);color:var(--warn)}
+  .tag{font-family:'IBM Plex Mono';font-size:11px;color:var(--muted);border:1px solid var(--line);
+    border-radius:5px;padding:2px 6px}
+  .min-good{color:var(--good)} .min-warn{color:var(--warn)} .min-bad{color:var(--bad)}
+
+  /* ============ ESTADOS ============ */
+  .empty,.loading{text-align:center;color:var(--muted);padding:50px 20px;font-size:14px}
+  .empty strong{color:var(--ink);font-family:'Oswald';font-weight:500;display:block;margin-bottom:6px;font-size:16px}
+  .err{background:rgba(239,91,91,.1);border:1px solid rgba(239,91,91,.35);color:#ffd6d6;
+    border-radius:12px;padding:14px 16px;margin-bottom:16px;font-size:13px}
+
+  /* ============ GATE PIN ============ */
+  #gate{position:fixed;inset:0;background:var(--bg);display:grid;place-items:center;z-index:50}
+  #gate .box{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:30px;width:300px;text-align:center}
+  #gate h3{font-family:'Oswald';margin:0 0 4px;letter-spacing:.5px}
+  #gate p{color:var(--muted);font-size:12px;margin:0 0 16px}
+  #gate input{width:100%;background:#0e2035;border:1px solid var(--line);color:var(--ink);
+    border-radius:9px;padding:11px;font-family:'IBM Plex Mono';font-size:18px;text-align:center;letter-spacing:6px}
+  #gate button{width:100%;margin-top:12px;background:var(--accent);border:0;color:#20140a;font-family:'Oswald';
+    font-weight:600;letter-spacing:.8px;text-transform:uppercase;padding:11px;border-radius:9px;cursor:pointer}
+  #gate .no{color:var(--bad);font-size:12px;margin-top:10px;min-height:16px}
+
+  @media(max-width:920px){
+    .cards{grid-template-columns:1fr 1fr}
+    .grid2,.grid2b{grid-template-columns:1fr}
+    .card .num.big{font-size:42px}
+  }
+</style>
+</head>
+<body>
+
+<!-- ====== PIN opcional (dejar CONFIG.pin = "" para desactivar) ====== -->
+<div id="gate" style="display:none">
+  <div class="box">
+    <h3>Centro Construrama</h3>
+    <p>Ingresa el PIN de acceso</p>
+    <input id="gatePin" type="password" inputmode="numeric" maxlength="8" autocomplete="off" />
+    <button onclick="checkPin()">Entrar</button>
+    <div class="no" id="gateNo"></div>
+  </div>
+</div>
+
+<div class="wrap" id="app" style="display:none">
+  <header class="top">
+    <div class="brand">
+      <div class="mark">CC</div>
+      <div>
+        <h1>Tiempo de respuesta del equipo</h1>
+        <p>Leads derivados por Andrea IA · Centro Construrama, Carora</p>
+      </div>
+    </div>
+    <div class="controls">
+      <div class="seg" id="seg">
+        <button data-p="mes" class="on">Este mes</button>
+        <button data-p="30">Últimos 30 días</button>
+        <button data-p="all">Todo</button>
+      </div>
+      <button class="btn-refresh" onclick="cargar()">↻ Actualizar</button>
+    </div>
+  </header>
+
+  <div id="errBox"></div>
+  <div id="content">
+    <div class="loading">Cargando datos…</div>
+  </div>
+  <div class="stamp" id="stamp" style="margin-top:18px"></div>
+</div>
+
+<script>
+/* ================= CONFIG ================= */
+const CONFIG = {
+  api: "https://n8n-n8n.n4jgrn.easypanel.host/webhook/construrama-kpi-data",
+  pin: "",              // ej: "2026" para activar el gate. Vacío = sin PIN.
+  metaBueno: 15,        // min: por debajo = verde
+  metaAlerta: 30,       // min: entre bueno y alerta = ámbar; por encima = rojo
+  refrescoMs: 120000    // auto-refresco (2 min)
+};
+
+/* ================= ESTADO ================= */
+let DATA = [];
+let periodo = "mes";
+let charts = {};
+
+/* ================= PIN GATE ================= */
+function iniciar(){
+  if(CONFIG.pin){
+    document.getElementById('gate').style.display='grid';
+    document.getElementById('gatePin').addEventListener('keydown',e=>{if(e.key==='Enter')checkPin();});
+  } else { abrirApp(); }
+}
+function checkPin(){
+  const v=document.getElementById('gatePin').value.trim();
+  if(v===CONFIG.pin){ document.getElementById('gate').style.display='none'; abrirApp(); }
+  else { document.getElementById('gateNo').textContent='PIN incorrecto'; }
+}
+function abrirApp(){
+  document.getElementById('app').style.display='block';
+  document.querySelectorAll('#seg button').forEach(b=>b.onclick=()=>{
+    document.querySelectorAll('#seg button').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on'); periodo=b.dataset.p; render();
+  });
+  cargar();
+  setInterval(cargar, CONFIG.refrescoMs);
+}
+
+/* ================= HELPERS ================= */
+const fmt1 = x => (x==null||isNaN(x))?'—':(Math.round(x*10)/10).toLocaleString('es-VE');
+const datePart = s => (s||'').slice(0,10);
+const hhmm = s => (s||'').slice(11,16);
+const ddmm = s => { const d=datePart(s); return d? d.slice(8,10)+'/'+d.slice(5,7):'—'; };
+function claseMin(m){ if(m==null||isNaN(m))return''; if(m<=CONFIG.metaBueno)return'good'; if(m<=CONFIG.metaAlerta)return'warn'; return'bad'; }
+
+function refHoy(){ const d=new Date(); return d.toISOString().slice(0,10); }
+function enPeriodo(row){
+  const d = datePart(row.derivada_hora_vzla);
+  if(!d) return false;
+  if(periodo==='all') return true;
+  const hoy = refHoy();
+  if(periodo==='mes') return d.slice(0,7)===hoy.slice(0,7);
+  if(periodo==='30'){
+    const corte = new Date(hoy); corte.setDate(corte.getDate()-30);
+    return d >= corte.toISOString().slice(0,10);
+  }
+  return true;
+}
+
+/* ================= CARGA ================= */
+async function cargar(){
+  try{
+    const r = await fetch(CONFIG.api, {cache:'no-store'});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const j = await r.json();
+    DATA = Array.isArray(j.rows)? j.rows : (Array.isArray(j)? j : []);
+    document.getElementById('errBox').innerHTML='';
+    render();
+  }catch(e){
+    document.getElementById('errBox').innerHTML =
+      '<div class="err">No se pudieron cargar los datos. Verifica que el flujo <b>KPI Data API</b> esté activo en n8n. ('+e.message+')</div>';
+    if(!DATA.length) document.getElementById('content').innerHTML='';
+  }
+}
+
+/* ================= RENDER ================= */
+function render(){
+  const rows = DATA.filter(enPeriodo);
+  const atend = rows.filter(x=>x.estado==='atendido' && x.tiempo_respuesta_minutos!=null);
+  const prom = atend.length ? atend.reduce((a,b)=>a+Number(b.tiempo_respuesta_minutos),0)/atend.length : null;
+
+  if(!rows.length){
+    document.getElementById('content').innerHTML =
+      '<div class="panel"><div class="empty"><strong>Aún no hay derivaciones en este período</strong>'+
+      'En cuanto Andrea derive un chat o asignes uno a un vendedor, el registro aparecerá aquí.</div></div>';
+    sello();
+    Object.values(charts).forEach(c=>c&&c.destroy()); charts={};
+    return;
+  }
+
+  const cl = claseMin(prom);
+  const maxScale = CONFIG.metaAlerta*2;
+  const needle = Math.min(100, (prom||0)/maxScale*100);
+  const p1 = CONFIG.metaBueno/maxScale*100, p2 = CONFIG.metaAlerta/maxScale*100;
+
+  document.getElementById('content').innerHTML = `
+    <div class="cards">
+      <div class="card hero">
+        <div class="lbl">Tiempo promedio de respuesta</div>
+        <div class="num big ${cl}">${fmt1(prom)}<span class="unit">min</span></div>
+        <div class="ruler" style="--p1:${p1}%;--p2:${p2}%"><div class="needle" style="left:${needle}%"></div></div>
+        <div class="ruler-scale"><span>0</span><span>meta ${CONFIG.metaBueno}′</span><span>${CONFIG.metaAlerta}′</span><span>${maxScale}′+</span></div>
+      </div>
+      <div class="card"><div class="lbl">Leads derivados</div><div class="num mid">${rows.length}</div><div class="sub">en el período</div></div>
+      <div class="card"><div class="lbl">Atendidos</div><div class="num mid good">${rows.filter(x=>x.estado==='atendido').length}</div><div class="sub">respondidos por un vendedor</div></div>
+      <div class="card"><div class="lbl">Pendientes</div><div class="num mid ${rows.filter(x=>x.estado==='pendiente').length?'warn':''}">${rows.filter(x=>x.estado==='pendiente').length}</div><div class="sub">sin atender aún</div></div>
+    </div>
+
+    <div class="grid2">
+      <div class="panel"><h2><span class="tick"></span>Promedio por vendedor (min)</h2><div class="chart-box"><canvas id="chVend"></canvas></div></div>
+      <div class="panel"><h2><span class="tick"></span>Origen del lead</h2><div class="chart-box sm"><canvas id="chOrigen"></canvas></div></div>
+    </div>
+
+    <div class="grid2b">
+      <div class="panel"><h2><span class="tick"></span>Derivaciones por día</h2><div class="chart-box"><canvas id="chDia"></canvas></div></div>
+      <div class="panel"><h2><span class="tick"></span>Leads atendidos por vendedor</h2><div class="chart-box"><canvas id="chConteo"></canvas></div></div>
+    </div>
+
+    <div class="panel">
+      <h2><span class="tick"></span>Detalle de derivaciones</h2>
+      <div class="tbl-wrap"><table>
+        <thead><tr>
+          <th>Conv.</th><th>Asignado</th><th>Atendió</th><th>Derivada</th><th>Atendida</th><th>Min</th><th>Estado</th><th>Origen</th>
+        </tr></thead>
+        <tbody>${filasTabla(rows)}</tbody>
+      </table></div>
+    </div>`;
+
+  dibujarCharts(rows, atend);
+  sello();
+}
+
+function filasTabla(rows){
+  return rows.slice(0,40).map(r=>{
+    const m = r.tiempo_respuesta_minutos;
+    const est = r.estado==='atendido'
+      ? '<span class="badge b-atendido">Atendido</span>'
+      : '<span class="badge b-pendiente">Pendiente</span>';
+    const orig = r.origen ? '<span class="tag">'+r.origen+'</span>' : '<span class="tag">—</span>';
+    return `<tr>
+      <td class="mono">#${r.conversation_id}</td>
+      <td>${r.vendedor_asignado_nombre||'—'}</td>
+      <td>${r.vendedor_atendio_nombre||'—'}</td>
+      <td class="mono">${ddmm(r.derivada_hora_vzla)} ${hhmm(r.derivada_hora_vzla)}</td>
+      <td class="mono">${r.atendida_hora_vzla?ddmm(r.atendida_hora_vzla)+' '+hhmm(r.atendida_hora_vzla):'—'}</td>
+      <td class="mono ${m!=null?'min-'+claseMin(m):''}">${m!=null?fmt1(m):'—'}</td>
+      <td>${est}</td>
+      <td>${orig}</td>
+    </tr>`;
+  }).join('');
+}
+
+/* ================= CHARTS ================= */
+function dibujarCharts(rows, atend){
+  Object.values(charts).forEach(c=>c&&c.destroy()); charts={};
+  const ink='#eaf1f8', muted='#8aa2bd', grid='rgba(138,162,189,.12)', amber='#ffb020';
+  Chart.defaults.color=muted; Chart.defaults.font.family="'Inter',sans-serif";
+
+  // Promedio por vendedor (barra horizontal)
+  const byV={};
+  atend.forEach(r=>{const k=r.vendedor_atendio_nombre||'—';(byV[k]=byV[k]||[]).push(Number(r.tiempo_respuesta_minutos));});
+  const vNames=Object.keys(byV);
+  const vAvg=vNames.map(n=>byV[n].reduce((a,b)=>a+b,0)/byV[n].length);
+  const vColors=vAvg.map(m=>m<=CONFIG.metaBueno?'#38d39f':(m<=CONFIG.metaAlerta?'#ffb020':'#ef5b5b'));
+  charts.vend=new Chart(document.getElementById('chVend'),{
+    type:'bar',
+    data:{labels:vNames,datasets:[{data:vAvg.map(x=>Math.round(x*10)/10),backgroundColor:vColors,borderRadius:5,barThickness:26}]},
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},
+      tooltip:{callbacks:{label:c=>c.parsed.x+' min promedio'}}},
+      scales:{x:{grid:{color:grid},ticks:{callback:v=>v+'′'}},y:{grid:{display:false}}}}
+  });
+
+  // Origen (doughnut)
+  const oA=atend.filter(r=>r.origen==='andrea').length, oM=atend.filter(r=>r.origen==='manual').length;
+  charts.origen=new Chart(document.getElementById('chOrigen'),{
+    type:'doughnut',
+    data:{labels:['Derivado por Andrea','Asignado manual'],datasets:[{data:[oA,oM],backgroundColor:['#ffb020','#3d6a99'],borderColor:'#112339',borderWidth:3}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{legend:{position:'bottom',labels:{padding:14,boxWidth:12}}}}
+  });
+
+  // Derivaciones por día (barra)
+  const byD={};
+  rows.forEach(r=>{const d=datePart(r.derivada_hora_vzla);if(d)byD[d]=(byD[d]||0)+1;});
+  const dias=Object.keys(byD).sort();
+  charts.dia=new Chart(document.getElementById('chDia'),{
+    type:'bar',
+    data:{labels:dias.map(d=>d.slice(8,10)+'/'+d.slice(5,7)),datasets:[{data:dias.map(d=>byD[d]),backgroundColor:amber,borderRadius:5,maxBarThickness:34}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{x:{grid:{display:false}},y:{grid:{color:grid},ticks:{precision:0}}}}
+  });
+
+  // Conteo atendidos por vendedor (barra)
+  const cNames=vNames, cVals=vNames.map(n=>byV[n].length);
+  charts.conteo=new Chart(document.getElementById('chConteo'),{
+    type:'bar',
+    data:{labels:cNames,datasets:[{data:cVals,backgroundColor:'#3d6a99',borderRadius:5,maxBarThickness:40}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{x:{grid:{display:false}},y:{grid:{color:grid},ticks:{precision:0}}}}
+  });
+}
+
+function sello(){
+  const d=new Date();
+  document.getElementById('stamp').textContent =
+    'Actualizado '+d.toLocaleTimeString('es-VE',{hour:'2-digit',minute:'2-digit'})+
+    ' · '+DATA.length+' registros · meta de respuesta '+CONFIG.metaBueno+' min';
+}
+
+iniciar();
+</script>
+</body>
+</html>
