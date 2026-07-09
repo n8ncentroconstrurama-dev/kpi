@@ -217,7 +217,7 @@ function render(){
   document.getElementById('content').innerHTML=`
     <div class="cards">
       <div class="card">
-        <div class="lbl">Tiempo prom. de respuesta · horario laboral</div>
+        <div class="lbl">Tiempo prom. de respuesta</div>
         <div class="num big ${cl}">${fmt1(prom)}<span class="unit">min</span></div>
         <div class="ruler" style="--p1:${p1}%;--p2:${p2}%"><div class="needle" style="left:${needle}%"></div></div>
         <div class="ruler-scale"><span>0</span><span>meta ${CONFIG.metaBueno}&#8242;</span><span>${CONFIG.metaAlerta}&#8242;</span><span>${maxScale}&#8242;+</span></div>
@@ -235,7 +235,7 @@ function render(){
     </div>
 
     <div class="grid2">
-      <div class="panel"><h2><span class="tick"></span>Tiempo prom. por vendedor (min hábiles)</h2><div class="chart-box"><canvas id="chVend"></canvas></div></div>
+      <div class="panel"><h2><span class="tick"></span>Tiempo prom. por vendedor</h2><div class="chart-box"><canvas id="chVend"></canvas></div></div>
       <div class="panel"><h2><span class="tick"></span>Conversaciones por canal</h2><div class="chart-box sm"><canvas id="chCanal"></canvas></div></div>
     </div>
 
@@ -255,7 +255,7 @@ function render(){
     <div class="panel">
       <h2><span class="tick"></span>Detalle de derivaciones</h2>
       <div class="tbl-wrap"><table>
-        <thead><tr><th>Conv.</th><th>Asignado</th><th>Atendió</th><th>Derivada</th><th>Atendida</th><th>Min hábil</th><th>Estado</th><th>Origen</th><th>Venta</th></tr></thead>
+        <thead><tr><th>Conv.</th><th>Asignado</th><th>Atendió</th><th>Derivada</th><th>Atendida</th><th>Min</th><th>Estado</th><th>Origen</th><th>Venta</th></tr></thead>
         <tbody>${tablaDetalle(rows)}</tbody>
       </table></div>
     </div>`;
@@ -293,14 +293,13 @@ function tablaDetalle(rows){
     const est=r.estado==='atendido'?'<span class="badge b-atendido">Atendido</span>':'<span class="badge b-pendiente">Pendiente</span>';
     const orig=r.origen?'<span class="tag">'+r.origen+'</span>':'<span class="tag">—</span>';
     const venta=r.venta_cerrada?('<span class="venta-si">&#10003; '+(r.monto_usd!=null?usd(r.monto_usd):'s/monto')+'</span>'):'<span style="color:var(--muted)">—</span>';
-    const rawTitle=r.tiempo_respuesta_minutos!=null?('crudo: '+fmt1(r.tiempo_respuesta_minutos)+' min'):'';
     return `<tr>
       <td class="mono">#${r.conversation_id}</td>
       <td>${r.vendedor_asignado_nombre||'—'}</td>
       <td>${r.vendedor_atendio_nombre||'—'}</td>
       <td class="mono">${ddmm(r.derivada_hora_vzla)} ${hhmm(r.derivada_hora_vzla)}</td>
       <td class="mono">${r.atendida_hora_vzla?ddmm(r.atendida_hora_vzla)+' '+hhmm(r.atendida_hora_vzla):'—'}</td>
-      <td class="mono ${m!=null?'min-'+claseMin(m):''}" title="${rawTitle}">${m!=null?fmt1(m):'—'}</td>
+      <td class="mono ${m!=null?'min-'+claseMin(m):''}">${m!=null?fmt1(m):'—'}</td>
       <td>${est}</td>
       <td>${orig}</td>
       <td>${venta}</td>
@@ -316,12 +315,16 @@ function dibujar(rows,atend,convs){
 
   const byV={};
   atend.forEach(r=>{const k=r.vendedor_atendio_nombre||'—';(byV[k]=byV[k]||[]).push(Number(r.tiempo_respuesta_habil_minutos));});
-  const vN=Object.keys(byV), vAvg=vN.map(n=>byV[n].reduce((a,b)=>a+b,0)/byV[n].length);
-  const vCol=vAvg.map(m=>m<=CONFIG.metaBueno?'#38d39f':(m<=CONFIG.metaAlerta?'#ffb020':'#ef5b5b'));
+  // universo = todos los vendedores del período (asignados + que atendieron), aunque no tengan atenciones
+  const universo=[...new Set(rows.flatMap(r=>[r.vendedor_asignado_nombre,r.vendedor_atendio_nombre]).filter(Boolean))];
+  const prom=n=>byV[n]?byV[n].reduce((a,b)=>a+b,0)/byV[n].length:null;
+  const vN=universo.slice().sort((a,b)=>{const av=prom(a),bv=prom(b);return (av==null?Infinity:av)-(bv==null?Infinity:bv);});
+  const vAvg=vN.map(n=>{const p=prom(n);return p==null?null:Math.round(p*10)/10;});
+  const vCol=vAvg.map(m=>m==null?'rgba(138,162,189,.22)':(m<=CONFIG.metaBueno?'#38d39f':(m<=CONFIG.metaAlerta?'#ffb020':'#ef5b5b')));
   charts.vend=new Chart(document.getElementById('chVend'),{type:'bar',
-    data:{labels:vN,datasets:[{data:vAvg.map(x=>Math.round(x*10)/10),backgroundColor:vCol,borderRadius:5,barThickness:26}]},
+    data:{labels:vN,datasets:[{data:vAvg,backgroundColor:vCol,borderRadius:5,barThickness:26}]},
     options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},
-      tooltip:{callbacks:{label:c=>c.parsed.x+' min hábiles'}}},
+      tooltip:{callbacks:{label:c=>c.parsed.x!=null?c.parsed.x+' min':'sin atenciones aún'}}},
       scales:{x:{grid:{color:grid},ticks:{callback:v=>v+'\u2032'}},y:{grid:{display:false}}}}});
 
   charts.canal=new Chart(document.getElementById('chCanal'),{type:'doughnut',
@@ -348,7 +351,7 @@ function sello(){
   const d=new Date();
   document.getElementById('stamp').textContent=
     'Actualizado '+d.toLocaleTimeString('es-VE',{hour:'2-digit',minute:'2-digit'})+
-    ' · '+DATA.rows.length+' leads · '+DATA.conversaciones.length+' conversaciones · meta '+CONFIG.metaBueno+' min · tiempo medido en horario laboral';
+    ' · '+DATA.rows.length+' leads · '+DATA.conversaciones.length+' conversaciones · meta '+CONFIG.metaBueno+' min';
 }
 
 iniciar();
